@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>買いまわり ポイント計算</title>
+<style>
+  :root{
+    --bg:#EEF0F3;
+    --surface:#FFFFFF;
+    --ink:#191B1F;
+    --muted:#6C727C;
+    --faint:#9AA1AB;
+    --line:#E3E6EB;
+    --crimson:#C8102E;      /* 楽天レッド系・見込み */
+    --crimson-soft:#FBE9EC;
+    --confirm:#0E9F6E;      /* 確定（購入済み） */
+    --confirm-soft:#E4F5EE;
+    --amber:#C2740B;        /* 注意 */
+    --amber-soft:#FCF1DE;
+    --shadow:0 1px 2px rgba(20,22,28,.06),0 6px 20px rgba(20,22,28,.06);
+    --radius:14px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    background:var(--bg);
+    color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Hiragino Kaku Gothic ProN","Hiragino Sans","Yu Gothic","Noto Sans JP",Meiryo,sans-serif;
+    font-feature-settings:"palt" 1;
+    line-height:1.5;
+    -webkit-text-size-adjust:100%;
+    padding:16px 14px 60px;
+  }
+  .wrap{max-width:560px;margin:0 auto}
+  .num{font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+
+  /* ---- header ---- */
+  header.top{margin:2px 2px 14px}
+  .kicker{font-size:11px;font-weight:700;letter-spacing:.14em;color:var(--crimson);text-transform:uppercase}
+  h1{font-size:21px;font-weight:800;margin:3px 0 4px;letter-spacing:-.01em}
+  .sub{font-size:12.5px;color:var(--muted);margin:0}
+
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:16px;margin-bottom:14px}
+
+  /* ---- ladder / hero ---- */
+  .ladderRow{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:9px}
+  .ladderRow .mult{font-size:13px;color:var(--muted);font-weight:600}
+  .ladderRow .mult b{color:var(--crimson);font-size:17px}
+  .ladder{display:flex;gap:4px;margin-bottom:6px}
+  .seg{flex:1;height:26px;border-radius:5px;background:#EDEFF2;border:1px solid #E1E4E9;position:relative;display:flex;align-items:center;justify-content:center;font-size:10px;color:var(--faint);font-weight:700}
+  .seg.confirmed{background:var(--confirm);border-color:var(--confirm);color:#fff}
+  .seg.projected{background:var(--crimson-soft);border-color:var(--crimson);color:var(--crimson)}
+  .legend{display:flex;gap:14px;font-size:11px;color:var(--muted);margin-top:2px}
+  .dot{display:inline-block;width:9px;height:9px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+  .dot.c{background:var(--confirm)} .dot.p{background:var(--crimson-soft);border:1px solid var(--crimson)}
+
+  .twin{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:15px}
+  .stat{border-radius:11px;padding:12px 12px 11px;border:1px solid var(--line)}
+  .stat.now{background:#F7F8FA}
+  .stat.final{background:var(--crimson-soft);border-color:#F3C9D1}
+  .stat .lab{font-size:11px;font-weight:700;color:var(--muted);letter-spacing:.02em}
+  .stat.final .lab{color:var(--crimson)}
+  .stat .big{font-size:27px;font-weight:800;margin-top:3px;line-height:1.05}
+  .stat .big .u{font-size:14px;font-weight:700;margin-left:2px}
+  .stat .brk{font-size:11px;color:var(--muted);margin-top:5px}
+  .stat .brk b{color:var(--ink);font-weight:700}
+
+  .delta{margin-top:11px;font-size:12.5px;background:var(--confirm-soft);color:#0a7d57;border-radius:9px;padding:9px 11px;display:flex;gap:7px;align-items:flex-start}
+  .delta.hint{background:#EEF2FF;color:#3a44a8}
+  .delta .ico{flex:none;font-weight:800}
+  .delta.warn{background:var(--amber-soft);color:#9a5a06}
+
+  /* ---- list ---- */
+  .listHead{display:flex;align-items:center;justify-content:space-between;margin:2px 2px 10px}
+  .listHead h2{font-size:14px;font-weight:800;margin:0}
+  .listHead .clear{font-size:12px;color:var(--faint);background:none;border:none;cursor:pointer;padding:4px}
+  .listHead .clear:hover{color:var(--crimson)}
+
+  .item{border:1px solid var(--line);border-radius:11px;padding:10px 10px 9px;margin-bottom:9px;background:#fff}
+  .item.done{border-color:#BFE7D6;background:#FBFDFC}
+  .r1{display:flex;gap:7px;margin-bottom:7px}
+  .r2{display:flex;gap:7px;flex-wrap:wrap;align-items:center}
+  input.f,select.f{font:inherit;font-size:13.5px;border:1px solid var(--line);border-radius:8px;padding:8px 9px;background:#fff;color:var(--ink);min-width:0}
+  input.f:focus,select.f:focus{outline:2px solid var(--crimson);outline-offset:-1px;border-color:var(--crimson)}
+  input.shop{flex:1.1}
+  input.name{flex:1.5}
+  .priceWrap{position:relative;display:flex;align-items:center}
+  .priceWrap .yen{position:absolute;left:9px;font-size:13px;color:var(--faint);pointer-events:none}
+  input.price{width:104px;padding-left:20px;text-align:right;font-variant-numeric:tabular-nums}
+  select.tax{width:70px;padding:8px 6px}
+  .buyBtn{font:inherit;font-size:12px;font-weight:700;border-radius:8px;padding:8px 10px;cursor:pointer;border:1px solid var(--line);background:#fff;color:var(--muted);white-space:nowrap}
+  .buyBtn.on{background:var(--confirm);border-color:var(--confirm);color:#fff}
+  .del{margin-left:auto;background:none;border:none;color:var(--faint);font-size:17px;cursor:pointer;padding:2px 6px;line-height:1}
+  .del:hover{color:var(--crimson)}
+  .tag{font-size:11px;font-weight:700;padding:2px 7px;border-radius:6px;white-space:nowrap}
+  .tag.ok{background:var(--confirm-soft);color:#0a7d57}
+  .tag.short{background:var(--amber-soft);color:#9a5a06}
+
+  .addBtn{width:100%;font:inherit;font-size:13.5px;font-weight:700;border:1.5px dashed #C9CED6;border-radius:11px;padding:11px;background:#fff;color:var(--muted);cursor:pointer}
+  .addBtn:hover{border-color:var(--crimson);color:var(--crimson)}
+
+  /* ---- breakdown ---- */
+  .bd h2{font-size:14px;font-weight:800;margin:0 2px 11px}
+  table.bd-t{width:100%;border-collapse:collapse;font-size:12.5px}
+  table.bd-t th{font-size:11px;color:var(--muted);font-weight:700;text-align:right;padding:0 6px 7px;border-bottom:1px solid var(--line)}
+  table.bd-t th.l{text-align:left}
+  table.bd-t td{padding:8px 6px;border-bottom:1px solid #F0F2F5;text-align:right;font-variant-numeric:tabular-nums}
+  table.bd-t td.l{text-align:left;font-weight:600}
+  table.bd-t td .st{font-size:10.5px;font-weight:700;color:var(--faint)}
+  table.bd-t td .st.q{color:var(--confirm)}
+  table.bd-t tr.dim td{color:var(--faint)}
+  table.bd-t tr.dim td.l{color:var(--muted)}
+  .bd-foot{margin-top:12px;font-size:12.5px}
+  .bd-foot .line{display:flex;justify-content:space-between;padding:4px 2px}
+  .bd-foot .line.total{border-top:1px solid var(--line);margin-top:5px;padding-top:9px;font-weight:800}
+  .bd-foot .v{font-variant-numeric:tabular-nums;font-weight:700}
+  .bd-foot .v.bonus{color:var(--crimson)}
+
+  /* ---- settings ---- */
+  .settings{display:flex;gap:8px;flex-wrap:wrap;align-items:center;font-size:12.5px;color:var(--muted)}
+  .settings label{font-weight:600}
+  select.cap{font:inherit;font-size:12.5px;border:1px solid var(--line);border-radius:8px;padding:6px 8px;background:#fff}
+  .note{font-size:11px;color:var(--faint);line-height:1.6;margin:14px 2px 0}
+  .note b{color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="top">
+    <div class="kicker">楽天お買い物マラソン</div>
+    <h1>買いまわり ポイント計算</h1>
+    <p class="sub">欲しいものを店舗ごとに入れて、購入済みを切り替えると「今やめた場合」と「全部買った場合」の獲得ポイントが同時にわかります。</p>
+  </header>
+
+  <!-- HERO -->
+  <div class="card">
+    <div class="ladderRow">
+      <div class="mult">現在の買いまわり倍率 <b id="multLabel">+0倍</b></div>
+      <div class="mult num" id="shopLabel">0 / 10 ショップ</div>
+    </div>
+    <div class="ladder" id="ladder"></div>
+    <div class="legend">
+      <span><span class="dot c"></span>確定（購入済み）</span>
+      <span><span class="dot p"></span>見込み（カゴ内も含む）</span>
+    </div>
+
+    <div class="twin">
+      <div class="stat now">
+        <div class="lab">今やめた場合（確定）</div>
+        <div class="big num"><span id="nowTotal">0</span><span class="u">pt</span></div>
+        <div class="brk">通常 <b id="nowBase">0</b> ＋ 特典 <b id="nowBonus">0</b></div>
+      </div>
+      <div class="stat final">
+        <div class="lab">全部買った場合（見込み）</div>
+        <div class="big num"><span id="finTotal">0</span><span class="u">pt</span></div>
+        <div class="brk">通常 <b id="finBase">0</b> ＋ 特典 <b id="finBonus">0</b></div>
+      </div>
+    </div>
+
+    <div class="delta" id="deltaBox" style="display:none"></div>
+    <div class="delta hint" id="hintBox" style="display:none"></div>
+    <div class="delta warn" id="capBox" style="display:none"></div>
+  </div>
+
+  <!-- LIST -->
+  <div class="card">
+    <div class="listHead">
+      <h2>買うものリスト</h2>
+      <button class="clear" id="clearBtn">すべて消す</button>
+    </div>
+    <div id="list"></div>
+    <button class="addBtn" id="addBtn">＋ 商品を追加</button>
+  </div>
+
+  <!-- BREAKDOWN -->
+  <div class="card bd">
+    <h2>店舗ごとの内訳（全部買った場合）</h2>
+    <table class="bd-t">
+      <thead>
+        <tr>
+          <th class="l">店舗</th>
+          <th>税込</th>
+          <th>通常pt</th>
+          <th>特典pt</th>
+        </tr>
+      </thead>
+      <tbody id="bdBody"></tbody>
+    </table>
+    <div class="bd-foot" id="bdFoot"></div>
+  </div>
+
+  <!-- SETTINGS -->
+  <div class="card">
+    <div class="settings">
+      <label for="capSel">今回のポイント上限</label>
+      <select class="cap" id="capSel">
+        <option value="5000">5,000pt</option>
+        <option value="7000" selected>7,000pt（今回 7/4〜7/11）</option>
+        <option value="10000">10,000pt</option>
+      </select>
+    </div>
+    <p class="note">
+      <b>計算のルール：</b>店舗ごとに税込1,000円以上（送料別）で1ショップとしてカウント。2ショップ目から特典が+1倍ずつ増え、10ショップで最大+9倍。ポイントは<b>税抜金額×1%（切り捨て）</b>で計算され、上限は買いまわり特典分のみ（通常1倍は別枠）。<br>
+      価格は<b>クーポン適用後・送料を除いた商品代金（税込）</b>を入力してください。食品などは税率8%を選択。SPUや5と0のつく日など他キャンペーンは別枠なので含まれません。あくまで概算で、実際は注文単位の端数処理で数pt前後することがあります。
+    </p>
+  </div>
+
+</div>
+
+<script>
+(function(){
+  "use strict";
+  var TAX_DEFAULT = 0.10;
+  var cap = 7000;
+  var uid = 0;
+
+  // seed example so the tool isn't empty
+  var items = [
+    {id:++uid, shop:"ドラッグストアA", name:"洗剤・日用品", price:1280, tax:0.10, bought:true},
+    {id:++uid, shop:"食品ショップB",   name:"コーヒー豆",   price:1000, tax:0.08, bought:true},
+    {id:++uid, shop:"雑貨ショップC",   name:"スマホケース", price:1500, tax:0.10, bought:false}
+  ];
+
+  var $ = function(id){return document.getElementById(id);};
+  var fmt = function(n){return Math.round(n).toLocaleString("ja-JP");};
+
+  // ---- calculation ----
+  function groupByShop(list){
+    var map = {};
+    var order = [];
+    list.forEach(function(it){
+      var key = (it.shop||"").trim() || "（店舗名なし）";
+      if(!map[key]){ map[key] = {shop:key, incl:0, excl:0, boughtCount:0, total:0}; order.push(key); }
+      var g = map[key];
+      var p = Number(it.price)||0;
+      var rate = (it.tax!=null)?it.tax:TAX_DEFAULT;
+      g.incl += p;
+      g.excl += p/(1+rate);
+      g.total += 1;
+      if(it.bought) g.boughtCount += 1;
+    });
+    return order.map(function(k){return map[k];});
+  }
+
+  function scenario(list){
+    var groups = groupByShop(list);
+    var qual = 0, baseAll = 0, baseQual = 0;
+    groups.forEach(function(g){
+      g.qualifies = g.incl >= 1000;
+      g.base = Math.floor(g.excl * 0.01);
+      baseAll += g.base;
+      if(g.qualifies){ qual++; baseQual += g.base; }
+    });
+    var effN = Math.min(qual, 10);
+    var mult = Math.max(effN - 1, 0);
+    var bonus = 0;
+    groups.forEach(function(g){
+      g.bonus = g.qualifies ? g.base * mult : 0;
+      bonus += g.bonus;
+    });
+    var bonusCapped = Math.min(bonus, cap);
+    return {groups:groups, qual:qual, mult:mult, baseAll:baseAll, baseQual:baseQual,
+            bonus:bonus, bonusCapped:bonusCapped, capped:(bonus>cap)};
+  }
+
+  // ---- render: item rows (rebuilt only on structural change) ----
+  function renderList(){
+    var box = $("list");
+    box.innerHTML = "";
+    items.forEach(function(it){
+      var el = document.createElement("div");
+      el.className = "item" + (it.bought ? " done" : "");
+      el.setAttribute("data-id", it.id);
+      el.innerHTML =
+        '<div class="r1">'+
+          '<input class="f shop" placeholder="店舗名" value="'+esc(it.shop)+'" data-k="shop">'+
+          '<input class="f name" placeholder="商品名（任意）" value="'+esc(it.name)+'" data-k="name">'+
+        '</div>'+
+        '<div class="r2">'+
+          '<span class="priceWrap"><span class="yen">¥</span>'+
+            '<input class="f price" type="number" inputmode="numeric" min="0" step="1" placeholder="0" value="'+(it.price!==""&&it.price!=null?it.price:"")+'" data-k="price"></span>'+
+          '<select class="f tax" data-k="tax">'+
+            '<option value="0.1"'+(it.tax===0.10?" selected":"")+'>税10%</option>'+
+            '<option value="0.08"'+(it.tax===0.08?" selected":"")+'>税8%</option>'+
+          '</select>'+
+          '<button class="buyBtn'+(it.bought?" on":"")+'" data-k="bought">'+(it.bought?"✓ 購入済み":"カゴ内")+'</button>'+
+          '<span class="tag" id="tag-'+it.id+'"></span>'+
+          '<button class="del" data-k="del" title="削除">✕</button>'+
+        '</div>';
+      box.appendChild(el);
+    });
+    updateAll();
+  }
+
+  function esc(s){ return String(s==null?"":s).replace(/"/g,"&quot;").replace(/</g,"&lt;"); }
+
+  // ---- update summary + row tags (no rebuild, keeps input focus) ----
+  function updateAll(){
+    var all = scenario(items);
+    var now = scenario(items.filter(function(i){return i.bought;}));
+
+    // ladder
+    var ladder = $("ladder");
+    ladder.innerHTML = "";
+    for(var i=1;i<=10;i++){
+      var seg = document.createElement("div");
+      seg.className = "seg" + (i<=now.qual ? " confirmed" : (i<=all.qual ? " projected" : ""));
+      seg.textContent = i;
+      ladder.appendChild(seg);
+    }
+    $("multLabel").textContent = "+"+all.mult+"倍";
+    $("shopLabel").textContent = all.qual + " / 10 ショップ";
+
+    // twin numbers
+    $("nowBase").textContent  = fmt(now.baseAll);
+    $("nowBonus").textContent = fmt(now.bonusCapped);
+    $("nowTotal").textContent = fmt(now.baseAll + now.bonusCapped);
+    $("finBase").textContent  = fmt(all.baseAll);
+    $("finBonus").textContent = fmt(all.bonusCapped);
+    $("finTotal").textContent = fmt(all.baseAll + all.bonusCapped);
+
+    // delta (value of finishing the cart)
+    var dTotal = (all.baseAll + all.bonusCapped) - (now.baseAll + now.bonusCapped);
+    var deltaBox = $("deltaBox");
+    if(dTotal > 0){
+      deltaBox.style.display = "flex";
+      deltaBox.innerHTML = '<span class="ico">＋</span><span>カゴ内を全部買うと、購入済みの分もすべて<b>+'+all.mult+'倍</b>まで引き上がり、合計 <b>+'+fmt(dTotal)+'pt</b> 増えます。倍率はさかのぼって適用されるので、先に買った商品が損することはありません。</span>';
+    } else {
+      deltaBox.style.display = "none";
+    }
+
+    // marginal hint: one more qualifying shop
+    var hintBox = $("hintBox");
+    if(all.qual >= 1 && all.qual < 10){
+      hintBox.style.display = "flex";
+      hintBox.innerHTML = '<span class="ico">↑</span><span>店舗をもう1つ（税込1,000円以上）増やすと全商品がさらに+1倍。特典が約 <b>+'+fmt(all.baseQual)+'pt</b> 上乗せされます。</span>';
+    } else {
+      hintBox.style.display = "none";
+    }
+
+    // cap warning
+    var capBox = $("capBox");
+    if(all.capped){
+      capBox.style.display = "flex";
+      capBox.innerHTML = '<span class="ico">!</span><span>特典が上限 <b>'+fmt(cap)+'pt</b> を超えています。超過分 <b>'+fmt(all.bonus-cap)+'pt</b> は付与されません。これ以上買い足しても特典は増えません。</span>';
+    } else {
+      capBox.style.display = "none";
+    }
+
+    // per-row tags
+    var groups = {};
+    all.groups.forEach(function(g){ groups[g.shop] = g; });
+    items.forEach(function(it){
+      var tag = $("tag-"+it.id);
+      if(!tag) return;
+      var key = (it.shop||"").trim() || "（店舗名なし）";
+      var g = groups[key];
+      if(!g){ tag.textContent=""; tag.className="tag"; return; }
+      if(g.qualifies){
+        tag.textContent = "対象";
+        tag.className = "tag ok";
+      } else {
+        var need = 1000 - g.incl;
+        tag.textContent = "あと¥"+fmt(need);
+        tag.className = "tag short";
+      }
+    });
+
+    // breakdown table
+    renderBreakdown(all);
+  }
+
+  function renderBreakdown(all){
+    var body = $("bdBody");
+    body.innerHTML = "";
+    if(all.groups.length===0){
+      body.innerHTML = '<tr class="dim"><td class="l" colspan="4">商品を追加すると内訳が表示されます</td></tr>';
+    }
+    all.groups.forEach(function(g){
+      var tr = document.createElement("tr");
+      if(!g.qualifies) tr.className = "dim";
+      var status = g.qualifies
+        ? '<span class="st q">対象 · '+g.boughtCount+'/'+g.total+'購入</span>'
+        : '<span class="st">対象外（あと¥'+fmt(1000-g.incl)+'）</span>';
+      tr.innerHTML =
+        '<td class="l">'+esc(g.shop)+'<br>'+status+'</td>'+
+        '<td>¥'+fmt(g.incl)+'</td>'+
+        '<td>'+fmt(g.base)+'</td>'+
+        '<td>'+(g.qualifies?fmt(g.bonus):"—")+'</td>';
+      body.appendChild(tr);
+    });
+
+    var foot = $("bdFoot");
+    var totalBase = all.baseAll;
+    var totalBonus = all.bonusCapped;
+    foot.innerHTML =
+      '<div class="line"><span>通常ポイント（1倍・別枠）</span><span class="v">'+fmt(totalBase)+' pt</span></div>'+
+      '<div class="line"><span>買いまわり特典'+(all.capped?'（上限適用）':'')+'</span><span class="v bonus">'+fmt(totalBonus)+' pt</span></div>'+
+      '<div class="line total"><span>合計</span><span class="v">'+fmt(totalBase+totalBonus)+' pt</span></div>';
+  }
+
+  // ---- events (delegated) ----
+  $("list").addEventListener("input", function(e){
+    var t = e.target;
+    var k = t.getAttribute("data-k");
+    if(!k) return;
+    var id = +t.closest(".item").getAttribute("data-id");
+    var it = items.find(function(x){return x.id===id;});
+    if(!it) return;
+    if(k==="price"){ it.price = t.value===""?"":Number(t.value); }
+    else if(k==="shop"||k==="name"){ it[k] = t.value; }
+    else if(k==="tax"){ it.tax = Number(t.value); }
+    updateAll();
+  });
+
+  $("list").addEventListener("change", function(e){
+    var t = e.target;
+    if(t.getAttribute("data-k")==="tax"){
+      var id = +t.closest(".item").getAttribute("data-id");
+      var it = items.find(function(x){return x.id===id;});
+      if(it){ it.tax = Number(t.value); updateAll(); }
+    }
+  });
+
+  $("list").addEventListener("click", function(e){
+    var t = e.target;
+    var k = t.getAttribute("data-k");
+    if(!k) return;
+    var id = +t.closest(".item").getAttribute("data-id");
+    if(k==="bought"){
+      var it = items.find(function(x){return x.id===id;});
+      if(it){ it.bought = !it.bought; renderList(); }
+    } else if(k==="del"){
+      items = items.filter(function(x){return x.id!==id;});
+      renderList();
+    }
+  });
+
+  $("addBtn").addEventListener("click", function(){
+    items.push({id:++uid, shop:"", name:"", price:"", tax:0.10, bought:false});
+    renderList();
+    // focus the new shop field
+    var rows = $("list").querySelectorAll(".item");
+    var last = rows[rows.length-1];
+    if(last){ var inp = last.querySelector(".shop"); if(inp) inp.focus(); }
+  });
+
+  $("clearBtn").addEventListener("click", function(){
+    if(items.length && !confirm("リストをすべて消しますか？")) return;
+    items = [];
+    renderList();
+  });
+
+  $("capSel").addEventListener("change", function(){
+    cap = Number(this.value);
+    updateAll();
+  });
+
+  renderList();
+})();
+</script>
+</body>
+</html>
